@@ -10,6 +10,21 @@ class TestMiniIceCube < MiniTest::Unit::TestCase
     @dsl.instance_eval(&block).to_s
   end
 
+  def assert_valid_series(max, interval, s)
+    parts = s.split(',').map(&:to_i)
+
+    # Each run inside time frame.
+    parts.each { |p| assert_includes 0..(max-1), p}
+
+    parts.each_cons(2) do |i, j|
+      # Monotonically increasing with steps == interval.
+      assert_equal (j - i), interval
+    end
+
+    # At least interval between last run and first run in next time frame.
+    assert_operator (parts.first + max - parts.last), :>=, interval
+  end
+
   def test_weekly
     assert_equal '0 3 * * 0', parse { weekly }
   end
@@ -18,19 +33,18 @@ class TestMiniIceCube < MiniTest::Unit::TestCase
     assert_equal '0 * * * *', parse { hourly }
   end
 
-  def test_minutely_with_interval_exact
-    assert_equal '0,10,20,30,40,50 * * * *', parse { minutely(10) }
-  end
+  def test_minutely_with_interval
+    cron_parts = parse { minutely(13) }.split(' ')
 
-  def test_minutely_with_interval_random
-    cron  = parse { minutely(13) }
-    parts = cron.split(' ')
-    assert_equal (['*'] * 4), parts[1..-1]
-    mp    = parts[0].split(',')
-    assert_equal 4, mp.size
+    assert_valid_series 60, 13, cron_parts[0]
+    assert_equal '* * * *', cron_parts[1..-1].join(' ')
   end
 
   def test_minute_of_hour
-    assert_equal '15,45 0,4,8,12,16,20 * * *', parse { hourly(4).minute_of_hour(15, 45) }
+    cron_parts = parse { hourly(4).minute_of_hour(15, 45) }.split(' ')
+
+    assert_equal '15,45', cron_parts[0]
+    assert_valid_series 24, 4, cron_parts[1]
+    assert_equal '* * *', cron_parts[2..-1].join(' ')
   end
 end

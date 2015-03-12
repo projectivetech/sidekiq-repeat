@@ -1,6 +1,6 @@
 module Sidekiq
   module Repeat
-    # Serious hack incoming:
+    ##
     # This is a mini compatibility layer for the ice_cube syntax. Nothing fancy.
     # It only supports interval-based -ly functions like "hourly(4)" and array
     # list information like .minute_of_hour(0,15,30,45), as these are the ones
@@ -56,28 +56,40 @@ module Sidekiq
                 interval = args.first.to_i
                 unsupported("invalid interval: #{interval}") unless interval && interval >= 0 && interval <= base
 
+                # Instead of always calculating the next() occurrence as ice_cube does,
+                # we can only have fixed run times (as per cron syntax). Hence we calculate
+                # the run times based on integer division of interval and time frame, using
+                # a random start offset based on the remaining time.
+                #
+                # NOTE: This effectivly means that after the last run in the time frame the
+                #       next run will be scheduled after interval+remainder.
+                #
+                # Example: minutely(17) will run 3 times per hour. After the last run each
+                #          hour the skip will be 17 + 9 = 26 minutes. A random offset in
+                #          [0,26) will be applied, so a possible cron line could be '4,21,38'.
+
                 times = []
                 nruns = (base / interval).floor
-                rnoff = rand(base - nruns * interval).floor
+                rnoff = rand(interval + base % interval).floor
                 runs  = nruns.times.map { |i| i * interval + rnoff }
                 stars << runs.map(&:to_s).join(',')
               end
 
               stars.fill('*', stars.size..4)
-              r = CronSyntax.new(*stars)
+              CronSyntax.new(*stars)
             end
           end
+        end
+
+        def weekly(*args)
+          unsupported('interval argument unsupported for weekly') unless args.empty?
+          CronSyntax.new(0, 3, '*', '*', 0)             # Sundays at 3AM.
         end
 
         define_interval_method(:minutely, 60)
         define_interval_method(:hourly, 24, 0)          # At first minute of hour.
         define_interval_method(:daily, 31, 0, 3)        # At night, 3AM.
         define_interval_method(:monthly, 12, 0, 3, 0)   # First day of the month, 3AM.
-
-        def weekly(*args)
-          unsupported('interval argument unsupported for weekly') unless args.empty?
-          CronSyntax.new(0, 3, '*', '*', 0)   # Sundays at 3AM.
-        end
       end
     end
   end
