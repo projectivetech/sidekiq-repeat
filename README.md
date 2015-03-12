@@ -39,4 +39,4 @@ Check [the code](lib/sidekiq/repeat/mini_ice_cube.rb) for documentation.
 
 ## License
 
-MIT.
+[MIT](LICENSE).
