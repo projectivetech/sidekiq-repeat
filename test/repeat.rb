@@ -1,20 +1,5 @@
 require 'minitest/autorun'
 
-# This test setup was taken from sidekiq-middleware:
-# https://github.com/krasnoukhov/sidekiq-middleware/blob/v0.3.0/test/test_unique_jobs.rb
-
-require 'celluloid'
-Celluloid.logger = nil
-
-require 'sidekiq'
-require 'sidekiq/cli'
-require 'sidekiq/processor'
-require 'sidekiq/redis_connection'
-Sidekiq.logger.level = Logger::ERROR
-Sidekiq.redis = Sidekiq::RedisConnection.create(:namespace => 'sidekiq-repeat-test')
-
-require 'sidekiq-repeat'
-
 require_relative './test_helper.rb'
 
 class TestRescheduling < MiniTest::Unit::TestCase
