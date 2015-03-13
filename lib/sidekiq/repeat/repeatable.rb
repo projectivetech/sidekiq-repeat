@@ -14,8 +14,13 @@ module Sidekiq
           return if     already_scheduled?
 
           ts = @cronline.next
-          self.perform_at ts.to_f
+          args = repeat_arguments(ts)
+          self.perform_at ts.to_f, *args
           Sidekiq.logger.info "Scheduled #{self.name} for #{ts}."
+        end
+
+        def repeat_arguments(ts)
+          [Time.now.to_f, ts.to_f].compact.take(instance_method(:perform).arity)
         end
 
         def repeat_configured?

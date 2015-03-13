@@ -15,53 +15,11 @@ Sidekiq.redis = Sidekiq::RedisConnection.create(:namespace => 'sidekiq-repeat-te
 
 require 'sidekiq-repeat'
 
-class SidekiqRepeatTestJob
-  include Sidekiq::Worker
-  include Sidekiq::Repeat::Repeatable
-  repeat { minutely }
-
-  def perform; end
-end
-
-UnitOfWork = Struct.new(:queue, :message) do
-  def acknowledge; end
-  def queue_name; end
-  def requeue; end
-end
+require_relative './test_helper.rb'
 
 class TestRescheduling < MiniTest::Unit::TestCase
-  def scheduled_jobs
-    Sidekiq::ScheduledSet.new.select { |i| i.klass == 'SidekiqRepeatTestJob' }
-  end
-
-  def assert_scheduled(size = 1)
-    assert_equal size, scheduled_jobs.size
-  end
-
-  def assert_not_scheduled
-    assert_scheduled 0
-  end
-
-  def delete_scheduled!
-    scheduled_jobs.map(&:delete)
-  end
-
-  def perform_scheduled!
-    msg = Sidekiq.dump_json('class' => 'SidekiqRepeatTestJob', 'queue' => 'default', 'args' => [])
-    work = UnitOfWork.new('default', msg)
-    actor = MiniTest::Mock.new
-    actor.expect(:processor_done, nil, [@processor])
-    actor.expect(:real_thread, nil, [nil, Celluloid::Thread])
-    2.times { @boss.expect(:async, actor, []) }
-    @processor.process(work)
-  end
-
-  def setup
-    Celluloid.boot
-    @boss = MiniTest::Mock.new
-    @processor = Sidekiq::Processor.new(@boss)
-    @processor.fire_event(:startup)
-  end
+  include TestHelper.assertions('SidekiqRepeatTestJob')
+  include TestHelper::CelluloidSetup
 
   def test_reschedules_itself_on_startup
     assert_scheduled
@@ -83,5 +41,16 @@ class TestRescheduling < MiniTest::Unit::TestCase
     perform_scheduled!
 
     assert_scheduled
+  end
+end
+
+class TestArguments < MiniTest::Unit::TestCase
+  include TestHelper.assertions('SidekiqRepeatArgumentsTestJob', true)
+  include TestHelper::CelluloidSetup
+
+  def test_perform_called_with_parameters
+    perform_scheduled!
+    assert_in_delta Time.now.to_f, SidekiqRepeatArgumentsTestJob.current, 0.1
+    assert_in_delta (SidekiqRepeatArgumentsTestJob.current - SidekiqRepeatArgumentsTestJob.last), 60, 0.1
   end
 end
