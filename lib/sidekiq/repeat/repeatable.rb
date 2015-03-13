@@ -20,7 +20,7 @@ module Sidekiq
         end
 
         def repeat_arguments(ts)
-          [Time.now.to_f, ts.to_f].compact.take(instance_method(:perform).arity)
+          [Time.now.to_f, ts.to_f].take(instance_method(:perform).arity)
         end
 
         def repeat_configured?
