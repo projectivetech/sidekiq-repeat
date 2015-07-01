@@ -16,7 +16,7 @@ require 'sidekiq-repeat'
 class SidekiqRepeatTestJob
   include Sidekiq::Worker
   include Sidekiq::Repeat::Repeatable
-  repeat { minutely }
+  repeat { hourly }
 
   def perform; end
 end
@@ -24,7 +24,7 @@ end
 class SidekiqRepeatArgumentsTestJob
   include Sidekiq::Worker
   include Sidekiq::Repeat::Repeatable
-  repeat { minutely }
+  repeat { hourly }
 
   class << self
     attr_accessor :last, :current
@@ -48,7 +48,7 @@ module TestHelper
       # NOTE: For some reason, we need to use define_method here, as otherwise `klass`
       #       and `arguments are undefined in the methods.
       define_method(:klass_name) { klass }
-      define_method(:perform_args) { perform_with_arguments ? [(Time.now - 60).to_f, Time.now.to_f] : [] }
+      define_method(:perform_args) { perform_with_arguments ? [(Time.now - 60 * 60).to_f, Time.now.to_f] : [] }
 
       def self.included(base)
         base.include Assertions

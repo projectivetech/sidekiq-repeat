@@ -27,6 +27,29 @@ class TestRescheduling < MiniTest::Unit::TestCase
 
     assert_scheduled
   end
+
+  def test_reschedules_job_if_in_the_future
+    assert_scheduled
+
+    if scheduled_jobs.first.at.to_f - Time.now.to_f <= 60
+      # If the next schedule is in less than a minute, this test case doesn't make sense.
+      skip
+    end
+
+    # Change the recurrence to minutely.
+    SidekiqRepeatTestJob.class_eval do
+      repeat { minutely }
+    end
+
+    SidekiqRepeatTestJob.reschedule
+
+    assert_in_delta Time.now.to_f + 60, scheduled_jobs.first.at.to_f, 60
+
+    # Change back to hourly default.
+    SidekiqRepeatTestJob.class_eval do
+      repeat { hourly }
+    end
+  end
 end
 
 class TestArguments < MiniTest::Unit::TestCase
@@ -36,7 +59,7 @@ class TestArguments < MiniTest::Unit::TestCase
   def test_perform_called_with_parameters
     perform_scheduled!
     assert_in_delta Time.now.to_f, SidekiqRepeatArgumentsTestJob.current, 0.1
-    assert_in_delta (SidekiqRepeatArgumentsTestJob.current - SidekiqRepeatArgumentsTestJob.last), 60, 0.1
+    assert_in_delta (SidekiqRepeatArgumentsTestJob.current - SidekiqRepeatArgumentsTestJob.last), 60 * 60, 0.1
   end
 end
 

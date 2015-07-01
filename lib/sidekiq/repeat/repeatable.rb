@@ -10,26 +10,28 @@ module Sidekiq
         end
 
         def reschedule
-          return unless repeat_configured?
-          return if     already_scheduled?
+          # Only if repeat is configured.
+          return unless !!@cronline
 
-          ts = @cronline.next
-          args = repeat_arguments(ts)
-          self.perform_at ts.to_f, *args
-          Sidekiq.logger.info "Scheduled #{self.name} for #{ts}."
+          ts   = @cronline.next
+          args = [Time.now.to_f, ts.to_f].take(instance_method(:perform).arity)
+          nj   = next_scheduled_job
+
+          if nj
+            if nj.at > ts
+              nj.item['args'] = args
+              nj.reschedule ts.to_f
+              Sidekiq.logger.info "Re-scheduled #{self.name} for #{ts}."
+            end
+          else
+            self.perform_at ts.to_f, *args
+            Sidekiq.logger.info "Scheduled #{self.name} for #{ts}."
+          end
         end
 
-        def repeat_arguments(ts)
-          [Time.now.to_f, ts.to_f].take(instance_method(:perform).arity)
-        end
-
-        def repeat_configured?
-          !!@cronline
-        end
-
-        def already_scheduled?
+        def next_scheduled_job
           @ss ||= Sidekiq::ScheduledSet.new
-          @ss.any? { |job| job.klass == self.name }
+          @ss.find { |job| job.klass == self.name }
         end
       end
 
