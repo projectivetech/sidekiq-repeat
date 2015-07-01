@@ -6,6 +6,8 @@ Sidekiq.configure_server do |config|
   end
 
   config.on(:startup) do
-    Sidekiq::Repeat::Repeatable.reschedule_all
+    Sidekiq::Repeat::Configuration.with_lock do
+      Sidekiq::Repeat::Repeatable.reschedule_all
+    end
   end
 end

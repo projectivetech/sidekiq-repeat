@@ -56,6 +56,16 @@ module TestHelper
     end
   end
 
+  def self.application_setup(startup_sidekiq = true, &block)
+    Module.new do
+      define_method(:startup_sidekiq) { startup_sidekiq }
+
+      def self.included(base)
+        base.include ApplicationSetup
+      end
+    end
+  end
+
   module Assertions
     def scheduled_jobs
       Sidekiq::ScheduledSet.new.select { |i| i.klass == klass_name }
@@ -82,13 +92,53 @@ module TestHelper
       2.times { @boss.expect(:async, actor, []) }
       @processor.process(work)
     end
+
+    def expect_redlock!(redis_instances = nil)
+      redis_instances ||= Sidekiq::Repeat::Configuration.instance.redlock_redis_instances
+
+      @redlock_client_instance = MiniTest::Mock.new
+      @redlock_client_instance.expect(:lock, nil, ['sidekiq-repeat-reschedule-all', 500])
+
+      @redlock_client_new_method = MiniTest::Mock.new
+      @redlock_client_new_method.expect(:call, @redlock_client_instance, [redis_instances])
+
+      Redlock::Client.stub(:new, @redlock_client_new_method) do
+        yield  # to test case.
+      end
+
+      @redlock_client_new_method.verify
+      @redlock_client_instance.verify
+    end
+
+    def expect_no_redlock!
+      @redlock_client_new_method = Proc.new { flunk 'Redlock::Client::new should not be called' }
+      Redlock::Client.stub(:new, @redlock_client_new_method) do
+        yield
+      end
+    end
   end
 
-  module CelluloidSetup
+  module ApplicationSetup
+    def configure(config)
+      # To be overwritten in test class.
+    end
+
     def setup
+      # Allow the test to configure Sidekiq::Repeat.
+      Sidekiq::Repeat.configure { |config| configure(config) }
+
       Celluloid.boot
       @boss = MiniTest::Mock.new
       @processor = Sidekiq::Processor.new(@boss)
+      startup_sidekiq! if startup_sidekiq
+    end
+
+    def teardown
+      # Reset to defaults for next test case.
+      Sidekiq::Repeat::Configuration.instance.reset_to_default!
+    end
+
+    def startup_sidekiq!
       @processor.fire_event(:startup)
     end
   end
