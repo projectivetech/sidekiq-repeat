@@ -3,17 +3,24 @@ module Sidekiq
     module Repeatable
       module ClassMethods
         def repeat(&block)
-          @cronline = MiniIceCube::MainDsl.new.instance_eval(&block).to_s
+          @block = block
+        end
+
+        def cronline
+          return @cronline if @cronline
+          return if @block.nil?
+          @cronline = MiniIceCube::MainDsl.new.instance_eval(&@block).to_s
           @cronline = CronParser.new(@cronline)
+
         rescue ArgumentError
           fail "repeat '#{@cronline}' in class #{self.name} is not a valid cron line"
         end
 
         def reschedule
           # Only if repeat is configured.
-          return unless !!@cronline
+          return unless !!cronline
 
-          ts   = @cronline.next
+          ts   = cronline.next
           args = [Time.now.to_f, ts.to_f].take(instance_method(:perform).arity)
           nj   = next_scheduled_job
 
