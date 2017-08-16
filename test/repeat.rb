@@ -39,6 +39,7 @@ class TestRescheduling < MiniTest::Unit::TestCase
     # Change the recurrence to minutely.
     SidekiqRepeatTestJob.class_eval do
       repeat { minutely }
+      @cronline = nil
     end
 
     SidekiqRepeatTestJob.reschedule

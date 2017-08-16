@@ -1,9 +1,6 @@
 # This test setup was taken from sidekiq-middleware:
 # https://github.com/krasnoukhov/sidekiq-middleware/blob/v0.3.0/test/test_unique_jobs.rb
 
-require 'celluloid'
-Celluloid.logger = nil
-
 require 'sidekiq'
 require 'sidekiq/cli'
 require 'sidekiq/processor'
@@ -36,7 +33,7 @@ class SidekiqRepeatArgumentsTestJob
   end
 end
 
-UnitOfWork = Struct.new(:queue, :message) do
+UnitOfWork = Struct.new(:queue, :job) do
   def acknowledge; end
   def queue_name; end
   def requeue; end
@@ -88,9 +85,8 @@ module TestHelper
       work = UnitOfWork.new('default', msg)
       actor = MiniTest::Mock.new
       actor.expect(:processor_done, nil, [@processor])
-      actor.expect(:real_thread, nil, [nil, Celluloid::Thread])
       2.times { @boss.expect(:async, actor, []) }
-      @processor.process(work)
+      @processor.send(:process, work)
     end
 
     def expect_redlock!(redis_instances = nil)
@@ -127,8 +123,8 @@ module TestHelper
       # Allow the test to configure Sidekiq::Repeat.
       Sidekiq::Repeat.configure { |config| configure(config) }
 
-      Celluloid.boot
       @boss = MiniTest::Mock.new
+      2.times { @boss.expect(:options, {:queues => ['default'] }, []) }
       @processor = Sidekiq::Processor.new(@boss)
       startup_sidekiq! if startup_sidekiq
     end
@@ -139,7 +135,9 @@ module TestHelper
     end
 
     def startup_sidekiq!
+      events = Sidekiq.options[:lifecycle_events][:startup].dup
       @processor.fire_event(:startup)
+      Sidekiq.options[:lifecycle_events][:startup] = events
     end
   end
 end
