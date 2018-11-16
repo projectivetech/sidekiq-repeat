@@ -3,4 +3,7 @@ services:
   - redis-server
 rvm:
  - 2.3.1
-script: bundle exec rake test
+script:
+  - bundle exec appraisal install
+  - bundle exec appraisal sidekiq-4 rake test
+  - bundle exec appraisal sidekiq-5 rake test
