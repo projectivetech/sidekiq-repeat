@@ -21,5 +21,4 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'minitest', '~> 3'
   spec.add_development_dependency 'rake', '>= 12.3.3'
   spec.add_development_dependency 'redis-namespace', '~> 1.3'
-  spec.add_development_dependency 'appraisal', '~> 2.2'
 end
