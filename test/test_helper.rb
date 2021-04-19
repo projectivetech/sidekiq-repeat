@@ -124,8 +124,8 @@ module TestHelper
       Sidekiq::Repeat.configure { |config| configure(config) }
 
       @boss = MiniTest::Mock.new
-      3.times { @boss.expect(:options, {:queues => ['default'] }, []) }
-      @processor = Sidekiq::Processor.new(@boss)
+      2.times { @boss.expect(:options, {:queues => ['default'] }, []) }
+      @processor = Sidekiq::Processor.new(@boss, queues: ['default'])
       startup_sidekiq! if startup_sidekiq
     end
 

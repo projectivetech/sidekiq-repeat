@@ -39,17 +39,13 @@ Check [the code](lib/sidekiq/repeat/mini_ice_cube.rb) for documentation.
 
 ## Development
 
-To run the tests with different Sidekiq versions, we use the [Appraisal](https://github.com/thoughtbot/appraisal) gem.
-
 ```sh
 # setup
-bundle exec appraisal install
+bundle install
 
-# test with Sidekiq 4
-bundle exec appraisal sidekiq-4 rake test
+# Run the tests
+bundle exec rake test
 
-# test with Sidekiq 5
-bundle exec appraisal sidekiq-5 rake test
 ```
 
 ## License

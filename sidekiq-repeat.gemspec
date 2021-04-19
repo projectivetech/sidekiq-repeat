@@ -14,12 +14,11 @@ Gem::Specification.new do |spec|
   spec.files         = Dir['lib/**/*rb']
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'sidekiq', '>= 4', '< 6'
+  spec.add_dependency 'sidekiq', '>= 6', '< 7.0'
   spec.add_dependency 'parse-cron', '~> 0.1'
-  spec.add_dependency 'redlock', '~> 0', '>= 0.1.1'
+  spec.add_dependency 'redlock', '~> 1'
 
   spec.add_development_dependency 'minitest', '~> 3'
   spec.add_development_dependency 'rake', '>= 12.3.3'
   spec.add_development_dependency 'redis-namespace', '~> 1.3'
-  spec.add_development_dependency 'appraisal', '~> 2.2'
 end
