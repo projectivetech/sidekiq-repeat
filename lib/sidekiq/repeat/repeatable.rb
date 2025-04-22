@@ -31,8 +31,8 @@ module Sidekiq
               Sidekiq.logger.info "Re-scheduled #{self.name} for #{ts}."
             end
           else
-            self.perform_at ts.to_f, *args
-            Sidekiq.logger.info "Scheduled #{self.name} for #{ts}."
+            jid = self.perform_at ts.to_f, *args
+            Sidekiq.logger.info "Scheduled #{self.name} for #{ts} with jid `#{jid.inspect}`."
           end
         end
 
