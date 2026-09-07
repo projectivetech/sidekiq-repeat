@@ -43,6 +43,9 @@ Check [the code](lib/sidekiq/repeat/mini_ice_cube.rb) for documentation.
 # setup
 bundle install
 
+# Start Redis in another terminal (or use an existing instance)
+docker run --rm -p 127.0.0.1:16379:6379 redis:8-alpine
+
 # Run the tests
 bundle exec rake test
 

@@ -1,8 +1,6 @@
-require 'minitest/autorun'
+require_relative 'test_helper'
 
-require_relative './test_helper.rb'
-
-class TestRescheduling < MiniTest::Unit::TestCase
+class TestRescheduling < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup
 
@@ -53,7 +51,7 @@ class TestRescheduling < MiniTest::Unit::TestCase
   end
 end
 
-class TestArguments < MiniTest::Unit::TestCase
+class TestArguments < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatArgumentsTestJob', true)
   include TestHelper.application_setup
 
@@ -64,7 +62,7 @@ class TestArguments < MiniTest::Unit::TestCase
   end
 end
 
-class TestRedlockDefaultConfiguration < MiniTest::Unit::TestCase
+class TestRedlockDefaultConfiguration < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 
@@ -73,7 +71,7 @@ class TestRedlockDefaultConfiguration < MiniTest::Unit::TestCase
   end
 end
 
-class TestRedlockDisabled < MiniTest::Unit::TestCase
+class TestRedlockDisabled < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 
@@ -86,7 +84,7 @@ class TestRedlockDisabled < MiniTest::Unit::TestCase
   end
 end
 
-class TestRedlockMultipleRedisInstances < MiniTest::Unit::TestCase
+class TestRedlockMultipleRedisInstances < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 

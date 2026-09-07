@@ -1,14 +1,28 @@
 # This test setup was taken from sidekiq-middleware:
 # https://github.com/krasnoukhov/sidekiq-middleware/blob/v0.3.0/test/test_unique_jobs.rb
 
+require 'simplecov'
+SimpleCov.start do
+  cover 'lib/**/*.rb'
+end
+
+require 'minitest/autorun'
 require 'sidekiq'
 require 'sidekiq/cli'
-require 'sidekiq/processor'
-require 'sidekiq/redis_connection'
+require 'sidekiq/testing'
+require 'minitest/mock'
+
+Sidekiq::Testing.disable!
 Sidekiq.logger.level = Logger::ERROR
-Sidekiq.redis = Sidekiq::RedisConnection.create(:namespace => 'sidekiq-repeat-test')
+Sidekiq.redis = {
+  url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379')
+}
 
 require 'sidekiq-repeat'
+
+Sidekiq::Testing.server_middleware do |chain|
+  chain.add Sidekiq::Repeat::Middleware
+end
 
 class SidekiqRepeatTestJob
   include Sidekiq::Worker
@@ -31,12 +45,6 @@ class SidekiqRepeatArgumentsTestJob
     self.class.last    = last
     self.class.current = current
   end
-end
-
-UnitOfWork = Struct.new(:queue, :job) do
-  def acknowledge; end
-  def queue_name; end
-  def requeue; end
 end
 
 module TestHelper
@@ -80,22 +88,21 @@ module TestHelper
       scheduled_jobs.map(&:delete)
     end
 
+    # Enqueues a job in memory with +fake!+, then executes it with +perform_one+, the purpose is to only use public
+    # Sidekiq API. During execution, testing is disabled, so the middleware schedules the next occurrence in Redis.
     def perform_scheduled!
-      msg = Sidekiq.dump_json('class' => klass_name, 'queue' => 'default', 'args' => perform_args)
-      work = UnitOfWork.new('default', msg)
-      actor = MiniTest::Mock.new
-      actor.expect(:processor_done, nil, [@processor])
-      2.times { @boss.expect(:async, actor, []) }
-      @processor.send(:process, work)
+      worker = Object.const_get(klass_name)
+      Sidekiq::Testing.fake! { worker.perform_async(*perform_args) }
+      worker.perform_one
     end
 
     def expect_redlock!(redis_instances = nil)
       redis_instances ||= Sidekiq::Repeat::Configuration.instance.redlock_redis_instances
 
-      @redlock_client_instance = MiniTest::Mock.new
+      @redlock_client_instance = Minitest::Mock.new
       @redlock_client_instance.expect(:lock, nil, ['sidekiq-repeat-reschedule-all', 500])
 
-      @redlock_client_new_method = MiniTest::Mock.new
+      @redlock_client_new_method = Minitest::Mock.new
       @redlock_client_new_method.expect(:call, @redlock_client_instance, [redis_instances])
 
       Redlock::Client.stub(:new, @redlock_client_new_method) do
@@ -115,29 +122,42 @@ module TestHelper
   end
 
   module ApplicationSetup
+    def run
+      Time.stub(:now, Time.local(2030, 1, 2, 12, 10, 30)) { super }
+    end
+
     def configure(config)
       # To be overwritten in test class.
     end
 
     def setup
+      clear_test_redis
+      Sidekiq::Repeat::Repeatable.repeatables.each do |klass|
+        klass.repeat { hourly }
+        klass.instance_variable_set(:@cronline, nil)
+        klass.instance_variable_set(:@ss, nil)
+      end
+      if startup_sidekiq
+        Sidekiq::Repeat::Configuration.instance.redlock_redis_instances = [Sidekiq.redis_pool]
+      end
       # Allow the test to configure Sidekiq::Repeat.
       Sidekiq::Repeat.configure { |config| configure(config) }
 
-      @boss = MiniTest::Mock.new
-      2.times { @boss.expect(:options, {:queues => ['default'] }, []) }
-      @processor = Sidekiq::Processor.new(@boss, queues: ['default'])
       startup_sidekiq! if startup_sidekiq
     end
 
     def teardown
+      clear_test_redis
       # Reset to defaults for next test case.
       Sidekiq::Repeat::Configuration.instance.reset_to_default!
     end
 
     def startup_sidekiq!
-      events = Sidekiq.options[:lifecycle_events][:startup].dup
-      @processor.fire_event(:startup)
-      Sidekiq.options[:lifecycle_events][:startup] = events
+      Sidekiq[:lifecycle_events][:startup].each(&:call)
+    end
+
+    def clear_test_redis
+      Sidekiq.redis(&:flushdb)
     end
   end
 end
