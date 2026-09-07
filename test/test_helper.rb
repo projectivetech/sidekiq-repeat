@@ -48,6 +48,15 @@ class SidekiqRepeatArgumentsTestJob
 end
 
 module TestHelper
+  LOCK_KEY = 'sidekiq-repeat-reschedule-all'
+
+  def self.second_redis_pool
+    @second_redis_pool ||= ConnectionPool.new(size: 1) do
+      primary_db = Sidekiq.redis { |redis| redis.connection[:db] }
+      Redis.new(url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379'), db: primary_db == 1 ? 0 : 1)
+    end
+  end
+
   def self.assertions(klass, perform_with_arguments = false)
     Module.new do
       # NOTE: For some reason, we need to use define_method here, as otherwise `klass`
@@ -96,28 +105,14 @@ module TestHelper
       worker.perform_one
     end
 
-    def expect_redlock!(redis_instances = nil)
-      redis_instances ||= Sidekiq::Repeat::Configuration.instance.redlock_redis_instances
+    def with_redlock_held(redis = Sidekiq.redis_pool)
+      client = Redlock::Client.new([redis], retry_count: 0)
+      lock = client.lock(TestHelper::LOCK_KEY, 30_000)
+      raise 'Could not acquire test lock' unless lock
 
-      @redlock_client_instance = Minitest::Mock.new
-      @redlock_client_instance.expect(:lock, nil, ['sidekiq-repeat-reschedule-all', 500])
-
-      @redlock_client_new_method = Minitest::Mock.new
-      @redlock_client_new_method.expect(:call, @redlock_client_instance, [redis_instances])
-
-      Redlock::Client.stub(:new, @redlock_client_new_method) do
-        yield  # to test case.
-      end
-
-      @redlock_client_new_method.verify
-      @redlock_client_instance.verify
-    end
-
-    def expect_no_redlock!
-      @redlock_client_new_method = Proc.new { flunk 'Redlock::Client::new should not be called' }
-      Redlock::Client.stub(:new, @redlock_client_new_method) do
-        yield
-      end
+      yield
+    ensure
+      client.unlock(lock) if lock
     end
   end
 
@@ -137,9 +132,7 @@ module TestHelper
         klass.instance_variable_set(:@cronline, nil)
         klass.instance_variable_set(:@ss, nil)
       end
-      if startup_sidekiq
-        Sidekiq::Repeat::Configuration.instance.redlock_redis_instances = [Sidekiq.redis_pool]
-      end
+      Sidekiq::Repeat::Configuration.instance.redlock_redis_instances = [Sidekiq.redis_pool]
       # Allow the test to configure Sidekiq::Repeat.
       Sidekiq::Repeat.configure { |config| configure(config) }
 
@@ -158,6 +151,7 @@ module TestHelper
 
     def clear_test_redis
       Sidekiq.redis(&:flushdb)
+      TestHelper.second_redis_pool.with { |redis| redis.del(TestHelper::LOCK_KEY) }
     end
   end
 end
