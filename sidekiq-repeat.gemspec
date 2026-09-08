@@ -14,9 +14,9 @@ Gem::Specification.new do |spec|
   spec.files         = Dir['lib/**/*rb']
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'sidekiq', '~> 6.5', '>= 6.5.12'
+  spec.add_dependency 'sidekiq', '~> 8', '< 9'
   spec.add_dependency 'parse-cron', '~> 0.1.4'
-  spec.add_dependency 'redlock', '~> 1.3', '>= 1.3.2'
+  spec.add_dependency 'redlock', '~> 2'
   # Sidekiq 6.5 requires these libraries without declaring them as gems.
   spec.add_dependency 'base64', '~> 0.3'
   spec.add_dependency 'logger', '~> 1.7'

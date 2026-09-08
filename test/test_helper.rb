@@ -9,14 +9,17 @@ end
 require 'minitest/autorun'
 require 'sidekiq'
 require 'sidekiq/cli'
-require 'sidekiq/testing'
 require 'minitest/mock'
 
-Sidekiq::Testing.disable!
+Sidekiq.testing!(:disable)
 Sidekiq.logger.level = Logger::ERROR
-Sidekiq.redis = {
-  url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379')
-}
+configure_sidekiq = proc do |config|
+  config.redis = {
+    url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379')
+  }
+end
+Sidekiq.configure_client(&configure_sidekiq)
+Sidekiq.configure_server(&configure_sidekiq)
 
 require 'sidekiq-repeat'
 
@@ -51,9 +54,10 @@ module TestHelper
   LOCK_KEY = 'sidekiq-repeat-reschedule-all'
 
   def self.second_redis_pool
-    @second_redis_pool ||= ConnectionPool.new(size: 1) do
-      primary_db = Sidekiq.redis { |redis| redis.connection[:db] }
-      Redis.new(url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379'), db: primary_db == 1 ? 0 : 1)
+    @second_redis_pool ||= begin
+      primary_db = Sidekiq.redis { |redis| redis.config.db }
+      client = RedisClient.config(url: ENV.fetch('TEST_REDIS_URL', 'redis://127.0.0.1:16379'), db: primary_db == 1 ? 0 : 1)
+      client.new_pool(size: 1)
     end
   end
 
@@ -146,12 +150,12 @@ module TestHelper
     end
 
     def startup_sidekiq!
-      Sidekiq[:lifecycle_events][:startup].each(&:call)
+      Sidekiq.default_configuration[:lifecycle_events][:startup].each(&:call)
     end
 
     def clear_test_redis
       Sidekiq.redis(&:flushdb)
-      TestHelper.second_redis_pool.with { |redis| redis.del(TestHelper::LOCK_KEY) }
+      TestHelper.second_redis_pool.with { |redis| redis.call('DEL', TestHelper::LOCK_KEY) }
     end
   end
 end
