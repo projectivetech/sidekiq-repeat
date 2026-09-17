@@ -1,8 +1,6 @@
-require 'minitest/autorun'
+require_relative 'test_helper'
 
-require_relative './test_helper.rb'
-
-class TestRescheduling < MiniTest::Unit::TestCase
+class TestRescheduling < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup
 
@@ -53,7 +51,7 @@ class TestRescheduling < MiniTest::Unit::TestCase
   end
 end
 
-class TestArguments < MiniTest::Unit::TestCase
+class TestArguments < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatArgumentsTestJob', true)
   include TestHelper.application_setup
 
@@ -64,16 +62,20 @@ class TestArguments < MiniTest::Unit::TestCase
   end
 end
 
-class TestRedlockDefaultConfiguration < MiniTest::Unit::TestCase
+class TestRedlockDefaultConfiguration < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 
   def test_startup_scheduling_is_locked
-    expect_redlock! { startup_sidekiq! }
+    with_redlock_held { startup_sidekiq! }
+    assert_not_scheduled
+
+    startup_sidekiq!
+    assert_scheduled
   end
 end
 
-class TestRedlockDisabled < MiniTest::Unit::TestCase
+class TestRedlockDisabled < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 
@@ -82,19 +84,21 @@ class TestRedlockDisabled < MiniTest::Unit::TestCase
   end
 
   def test_startup_scheduling_is_not_locked
-    expect_no_redlock! { startup_sidekiq! }
+    with_redlock_held { startup_sidekiq! }
+    assert_scheduled
   end
 end
 
-class TestRedlockMultipleRedisInstances < MiniTest::Unit::TestCase
+class TestRedlockMultipleRedisInstances < Minitest::Test
   include TestHelper.assertions('SidekiqRepeatTestJob')
   include TestHelper.application_setup(false)
 
   def configure(config)
-    config.redlock_redis_instances = ['redis://1.2.3.4/', 'redis://5.6.7.8/']
+    config.redlock_redis_instances = [Sidekiq.redis_pool, TestHelper.second_redis_pool]
   end
 
-  def test_startup_scheduling_is_not_locked
-    expect_redlock!(['redis://1.2.3.4/', 'redis://5.6.7.8/']) { startup_sidekiq! }
+  def test_startup_scheduling_is_locked
+    with_redlock_held(TestHelper.second_redis_pool) { startup_sidekiq! }
+    assert_not_scheduled
   end
 end
