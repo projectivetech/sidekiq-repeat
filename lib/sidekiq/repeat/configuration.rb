@@ -19,8 +19,8 @@ module Sidekiq
 
       def self.with_lock
         if instance.redlock_enabled
-          Redlock::Client.new(instance.redlock_redis_instances).lock('sidekiq-repeat-reschedule-all', 500) do
-            yield
+          Redlock::Client.new(instance.redlock_redis_instances, {redis_timeout: 1}).lock('sidekiq-repeat-reschedule-all', 5000) do |lock_info|
+            yield if lock_info
           end
         else
           yield

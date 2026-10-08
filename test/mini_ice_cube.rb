@@ -1,7 +1,6 @@
-require 'minitest/autorun'
-require 'sidekiq/repeat/mini_ice_cube'
+require_relative 'test_helper'
 
-class TestMiniIceCube < MiniTest::Unit::TestCase
+class TestMiniIceCube < Minitest::Test
   def setup
     @dsl = Sidekiq::Repeat::MiniIceCube::MainDsl.new
   end
